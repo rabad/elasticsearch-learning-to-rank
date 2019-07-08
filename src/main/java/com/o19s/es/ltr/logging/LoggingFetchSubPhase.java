@@ -20,6 +20,7 @@ import com.o19s.es.ltr.feature.FeatureSet;
 import com.o19s.es.ltr.query.RankerQuery;
 import com.o19s.es.ltr.ranker.LogLtrRanker;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -132,11 +133,17 @@ public class LoggingFetchSubPhase implements FetchSubPhase {
         }
         return toLogger(logSpec, inspectQuery(q)
                 .orElseThrow(() -> new IllegalArgumentException("Query named [" + logSpec.getNamedQuery() +
-                        "] must be a [sltr] query [" +
-                        ((q instanceof BoostQuery) ? ((BoostQuery) q).getQuery().getClass().getSimpleName(
+                        "] must be a [sltr] query [" + getQueryClassName(q) + "] found")));
+    }
 
-                        ) : q.getClass().getSimpleName()) +
-                        "] found")));
+    private String getQueryClassName(Query q) {
+        if (q instanceof BoostQuery) {
+            return ((BoostQuery) q).getQuery().getClass().getSimpleName();
+        } else if (q instanceof FunctionScoreQuery) {
+            return ((FunctionScoreQuery) q).getWrappedQuery().getClass().getSimpleName();
+        } else {
+            return q.getClass().getSimpleName();
+        }
     }
 
     private Tuple<RankerQuery, HitLogConsumer> extractRescore(LoggingSearchExtBuilder.LogSpec logSpec,
@@ -163,6 +170,8 @@ public class LoggingFetchSubPhase implements FetchSubPhase {
             return Optional.of((RankerQuery) q);
         } else if (q instanceof BoostQuery && ((BoostQuery) q).getQuery() instanceof RankerQuery) {
             return Optional.of((RankerQuery) ((BoostQuery) q).getQuery());
+        } else if (q instanceof FunctionScoreQuery && ((FunctionScoreQuery) q).getWrappedQuery() instanceof RankerQuery) {
+            return Optional.of((RankerQuery) ((FunctionScoreQuery) q).getWrappedQuery());
         }
         return Optional.empty();
     }
